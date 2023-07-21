@@ -1,31 +1,34 @@
-apiVersion: v1
 kind: ConfigMap
+apiVersion: v1
 metadata:
+  name: rest-fights-config2
   labels:
     app: rest-fights
     application: fights-service
     system: quarkus-super-heroes
-  name: rest-fights-config-new
 data:
-  quarkus.liquibase-mongodb.migrate-at-start: "false"
-  quarkus.stork.hero-service.service-discovery.type: kubernetes
-  quarkus.stork.hero-service.service-discovery.application: rest-heroes
-  quarkus.stork.hero-service.service-discovery.refresh-period: 1M
   quarkus.stork.villain-service.service-discovery.type: kubernetes
   quarkus.stork.villain-service.service-discovery.application: rest-villains
-  quarkus.stork.villain-service.service-discovery.refresh-period: 1M
-  quarkus.opentelemetry.tracer.exporter.otlp.endpoint: http://otel-collector:4317
-  kafka.bootstrap.servers: PLAINTEXT://fights-kafka:9092
-  mp.messaging.connector.smallrye-kafka.apicurio.registry.url: http://apicurio:8080/apis/registry/v2
+  kafka.bootstrap.servers: 'PLAINTEXT://fights-kafka:9092'
+  quarkus.stork.villain-service.service-discovery.port-name: http
+  quarkus.stork.hero-service.service-discovery.application: rest-heroes
+  quarkus.stork.hero-service.service-discovery.refresh-period: 1H
+  quarkus.liquibase-mongodb.migrate-at-start: 'false'
+  quarkus.otel.exporter.otlp.traces.endpoint: 'http://otel-collector:4317'
+  quarkus.stork.hero-service.service-discovery.port-name: http
+  mp.messaging.connector.smallrye-kafka.apicurio.registry.url: 'http://apicurio:8080/apis/registry/v2'
+  quarkus.stork.hero-service.service-discovery.type: kubernetes
+  quarkus.stork.villain-service.service-discovery.refresh-period: 1H
+  
 ---
-apiVersion: apps.openshift.io/v1
+ apiVersion: apps.openshift.io/v1
 kind: DeploymentConfig
 metadata:
   annotations:
-    app.openshift.io/connects-to: "fights-db,fights-kafka,apicurio,rest-villains,rest-heroes,otel-collector"
-    app.openshift.io/vcs-ref: rhbq-2.13
     app.openshift.io/vcs-url: https://github.com/quarkusio/quarkus-super-heroes
-    app.quarkus.io/build-timestamp: 2023-05-15 - 20:09:34 +0000
+    app.openshift.io/connects-to: "fights-db,fights-kafka,apicurio,rest-villains,rest-heroes,otel-collector"
+    app.openshift.io/vcs-ref: main
+    app.quarkus.io/build-timestamp: 2023-07-20 - 15:13:45 +0000
     prometheus.io/scrape: "true"
     prometheus.io/path: /q/metrics
     prometheus.io/port: "8082"
@@ -33,25 +36,26 @@ metadata:
   labels:
     app.kubernetes.io/name: rest-fights
     app.kubernetes.io/part-of: fights-service
-    app.kubernetes.io/version: java17-latest-rhbq-2.13
+    app.kubernetes.io/version: java17-latest
     app: rest-fights
     application: fights-service
     system: quarkus-super-heroes
+    app.kubernetes.io/managed-by: quarkus
     app.openshift.io/runtime: quarkus
   name: rest-fights
 spec:
   replicas: 1
   selector:
     app.kubernetes.io/name: rest-fights
+    app.kubernetes.io/version: java17-latest
     app.kubernetes.io/part-of: fights-service
-    app.kubernetes.io/version: java17-latest-rhbq-2.13
   template:
     metadata:
       annotations:
-        app.openshift.io/connects-to: "fights-db,fights-kafka,apicurio,rest-villains,rest-heroes,otel-collector"
-        app.openshift.io/vcs-ref: rhbq-2.13
         app.openshift.io/vcs-url: https://github.com/quarkusio/quarkus-super-heroes
-        app.quarkus.io/build-timestamp: 2023-05-15 - 20:09:34 +0000
+        app.openshift.io/connects-to: "fights-db,fights-kafka,apicurio,rest-villains,rest-heroes,otel-collector"
+        app.openshift.io/vcs-ref: main
+        app.quarkus.io/build-timestamp: 2023-07-20 - 15:13:45 +0000
         prometheus.io/scrape: "true"
         prometheus.io/path: /q/metrics
         prometheus.io/port: "8082"
@@ -60,10 +64,11 @@ spec:
         app: rest-fights
         application: fights-service
         system: quarkus-super-heroes
+        app.kubernetes.io/managed-by: quarkus
         app.openshift.io/runtime: quarkus
         app.kubernetes.io/name: rest-fights
+        app.kubernetes.io/version: java17-latest
         app.kubernetes.io/part-of: fights-service
-        app.kubernetes.io/version: java17-latest-rhbq-2.13
     spec:
       containers:
         - env:
@@ -74,12 +79,12 @@ spec:
             - name: QUARKUS_MONGODB_CONNECTION_STRING
               valueFrom:
                 secretKeyRef:
-                  name: demo-project-test-deployment-user-app
+                  name: test-atlas-operator-project-test-deployment-superfight
                   key: connectionStringStandardSrv
           envFrom:
             - configMapRef:
-                name: rest-fights-config-new
-          image: rest-fights:java17-latest-rhbq-2.13
+                name: rest-fights-config2
+          image: rest-fights:java17-latest
           imagePullPolicy: Always
           livenessProbe:
             failureThreshold: 3
@@ -87,8 +92,8 @@ spec:
               path: /q/health/live
               port: 8082
               scheme: HTTP
-            initialDelaySeconds: 0
-            periodSeconds: 30
+            initialDelaySeconds: 5
+            periodSeconds: 10
             successThreshold: 1
             timeoutSeconds: 10
           name: rest-fights
@@ -102,8 +107,8 @@ spec:
               path: /q/health/ready
               port: 8082
               scheme: HTTP
-            initialDelaySeconds: 0
-            periodSeconds: 30
+            initialDelaySeconds: 5
+            periodSeconds: 10
             successThreshold: 1
             timeoutSeconds: 10
           resources:
@@ -111,6 +116,16 @@ spec:
               memory: 768Mi
             requests:
               memory: 256Mi
+          startupProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /q/health/started
+              port: 8082
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 10
   triggers:
     - imageChangeParams:
         automatic: true
@@ -118,5 +133,5 @@ spec:
           - rest-fights
         from:
           kind: ImageStreamTag
-          name: rest-fights:java17-latest-rhbq-2.13
+          name: rest-fights:java17-latest
       type: ImageChange
